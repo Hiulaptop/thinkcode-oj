@@ -13,16 +13,22 @@
 
 FROM python:3.11-slim-bookworm AS base
 
+ARG PANDOC_VERSION=3.10.2
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        git gcc g++ make curl gettext \
+        git gcc g++ make curl gettext ca-certificates \
         libxml2-dev libxslt1-dev zlib1g-dev \
         default-libmysqlclient-dev pkg-config \
         libjpeg-dev libssl-dev && \
+    curl -fsSL "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-1-amd64.deb" \
+        -o /tmp/pandoc.deb && \
+    apt-get install -y --no-install-recommends /tmp/pandoc.deb && \
+    rm -f /tmp/pandoc.deb && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y --no-install-recommends nodejs && \
     apt-get autoremove -y && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    pandoc --version | head -1
 
 WORKDIR /site
 
