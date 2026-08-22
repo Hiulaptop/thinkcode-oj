@@ -151,9 +151,17 @@ jobs:
           container=""
           chmod -R 777 "$STATIC_DIR"
 
-          docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans
-          docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --remove-orphans
-          docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" ps
+          # Fixed project name so every CD run targets the same containers.
+          # Also stop leftover interim containers from earlier manual cutovers
+          # (project "thinkcode-runtime") that would otherwise conflict on names.
+          COMPOSE=(docker compose -p thinkcode -f "$COMPOSE_FILE" --env-file "$ENV_FILE")
+          docker compose -p thinkcode-runtime -f "$COMPOSE_FILE" --env-file "$ENV_FILE" down --remove-orphans >/dev/null 2>&1 || true
+          for name in thinkcode-site thinkcode-bridged thinkcode-celery thinkcode-wsevent; do
+            docker rm -f "$name" >/dev/null 2>&1 || true
+          done
+          "${COMPOSE[@]}" down --remove-orphans
+          "${COMPOSE[@]}" up -d --remove-orphans
+          "${COMPOSE[@]}" ps
           REMOTE_SCRIPT
           } | ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' \
