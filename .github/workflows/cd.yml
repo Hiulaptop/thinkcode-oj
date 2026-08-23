@@ -89,6 +89,7 @@ jobs:
           R2_MEDIA_CUSTOM_DOMAIN: ${{ vars.R2_MEDIA_CUSTOM_DOMAIN }}
           R2_MEDIA_PRIVATE: ${{ vars.R2_MEDIA_PRIVATE }}
           USE_R2_MEDIA: ${{ vars.USE_R2_MEDIA }}
+          BRIDGED_R2_PROBLEMS: ${{ vars.BRIDGED_R2_PROBLEMS }}
         run: |
           R2_ENV="$(printf '%s\n' \
             "R2_ACCESS_KEY_ID=$R2_ACCESS_KEY_ID" \
@@ -100,7 +101,8 @@ jobs:
             "R2_BACKUPS_BUCKET=$R2_BACKUPS_BUCKET" \
             "R2_MEDIA_CUSTOM_DOMAIN=$R2_MEDIA_CUSTOM_DOMAIN" \
             "R2_MEDIA_PRIVATE=$R2_MEDIA_PRIVATE" \
-            "USE_R2_MEDIA=$USE_R2_MEDIA")"
+            "USE_R2_MEDIA=$USE_R2_MEDIA" \
+            "BRIDGED_R2_PROBLEMS=$BRIDGED_R2_PROBLEMS")"
           ENV_B64="$(printf '%s\n%s' "$PRODUCTION_ENV" "$R2_ENV" | base64 -w0)"
           COMPOSE_B64="$(base64 -w0 docker-compose.production.yml)"
           {
