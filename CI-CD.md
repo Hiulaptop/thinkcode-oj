@@ -128,9 +128,10 @@ The site bridge sends `problem-version` and `problem-sha256` on each
 submission. Judges with `r2_problems.enabled` download that package into
 `/var/cache/dmoj-problems` and grade from the cache. R2 is never FUSE-mounted.
 
-Set `BRIDGED_R2_PROBLEMS=True` only after judges understand the new packet
-fields. Until then, leave it false so missing release metadata does not
-block dispatch.
+Set GitHub Actions variable `BRIDGED_R2_PROBLEMS=True` only after judges
+understand the new packet fields. Until then, leave it false so missing
+release metadata does not block dispatch. CD injects this into the
+runtime env for `site`/`bridged`/`celery`.
 
 Rollback for media is `USE_R2_MEDIA=False` followed by a normal CD deployment.
 Rollback for judge R2 mode is `r2_problems.enabled: false` (or
