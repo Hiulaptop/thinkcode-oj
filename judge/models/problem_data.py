@@ -93,6 +93,13 @@ class ProblemData(models.Model):
                                    help_text=_('grader arguments as a JSON object'))
     zipfile_size = models.BigIntegerField(verbose_name=_('test data storage size'), default=0,
                                           help_text=_('Size of the test data zip file in bytes.'))
+    r2_release_version = models.CharField(max_length=64, blank=True, default='',
+                                          verbose_name=_('R2 release version'))
+    r2_release_sha256 = models.CharField(max_length=64, blank=True, default='',
+                                         verbose_name=_('R2 release SHA-256'))
+    r2_release_key = models.CharField(max_length=255, blank=True, default='',
+                                      verbose_name=_('R2 release package key'))
+    r2_released_at = models.DateTimeField(null=True, blank=True, verbose_name=_('R2 released at'))
 
     def has_yml(self):
         return problem_data_storage.exists('%s/init.yml' % self.problem.code)

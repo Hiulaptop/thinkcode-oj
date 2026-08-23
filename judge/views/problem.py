@@ -1030,8 +1030,17 @@ class ProblemImportPolygon(PermissionRequiredMixin, TitleMixin, FormView):
                     config=config,
                 )
                 importer.run()
+                from judge.utils.problem_releases import publish_problem_to_r2
+                publish_problem_to_r2(code)
             except ImportPolygonError as e:
                 return generic_message(request, _('Failed to import problem'), str(e), status=400)
+            except Exception as e:
+                return generic_message(
+                    request,
+                    _('Failed to publish problem release'),
+                    str(e),
+                    status=400,
+                )
 
             return HttpResponseRedirect(reverse('problem_detail', args=[code]))
 
