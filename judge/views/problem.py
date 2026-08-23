@@ -29,7 +29,7 @@ from reversion import revisions
 from judge.comments import CommentedDetailView
 from judge.forms import LanguageLimitFormSet, ProblemCloneForm, ProblemEditForm, ProblemEditTypeGroupForm, \
     ProblemImportPolygonForm, ProblemImportPolygonStatementFormSet, ProblemSubmitForm, ProposeProblemSolutionFormSet
-from judge.models import Contest, ContestSubmission, Judge, Language, Problem, ProblemGroup, \
+from judge.models import Contest, ContestSubmission, Language, Problem, ProblemGroup, \
     ProblemTranslation, ProblemType, RuntimeVersion, Solution, Submission, SubmissionSource
 from judge.template_context import misc_config
 from judge.utils.codeforces_polygon import ImportPolygonError, PolygonImporter
@@ -306,7 +306,7 @@ class ProblemSubmitMixin:
         # Set judge choices
         if self.object.is_editable_by(self.request.user):
             form.fields['judge'].choices = tuple(
-                Judge.objects.filter(online=True, problems=self.object).values_list('name', 'name'),
+                self.object.available_judges().values_list('name', 'name'),
             )
         else:
             form.fields['judge'].choices = ()
@@ -462,7 +462,7 @@ class ProblemDetail(ProblemMixin, ProblemClarificationsMixin, SolvedProblemMixin
                                                   get_contest_submission_count(self.object, user.profile,
                                                                                user.profile.current_contest.virtual), 0)
 
-        context['available_judges'] = Judge.objects.filter(online=True, problems=self.object)
+        context['available_judges'] = self.object.available_judges()
         context['show_languages'] = self.object.allowed_languages.count() != Language.objects.count()
         context['has_pdf_render'] = PDF_RENDERING_ENABLED
         context['completed_problem_ids'] = self.get_completed_problems()

@@ -18,7 +18,7 @@ from django.utils.translation import gettext_lazy as _
 from judge.fulltext import SearchQuerySet
 from judge.models.problem_data import problem_data_storage
 from judge.models.profile import Organization, Profile
-from judge.models.runtime import Language
+from judge.models.runtime import Judge, Language
 from judge.user_translations import gettext as user_gettext
 from judge.utils.url import get_absolute_pdf_url
 
@@ -464,8 +464,16 @@ class Problem(models.Model):
     def usable_common_names(self):
         return set(self.usable_languages.values_list('common_name', flat=True))
 
+    def available_judges(self):
+        qs = Judge.objects.filter(online=True)
+        if getattr(settings, 'BRIDGED_R2_PROBLEMS', False):
+            return qs
+        return qs.filter(problems=self)
+
     @property
     def usable_languages(self):
+        if getattr(settings, 'BRIDGED_R2_PROBLEMS', False):
+            return self.allowed_languages.filter(judges__online=True).distinct()
         return self.allowed_languages.filter(judges__in=self.judges.filter(online=True)).distinct()
 
     def translated_name(self, language):

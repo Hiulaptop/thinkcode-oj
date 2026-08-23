@@ -4,6 +4,7 @@ from judge.bridge.judge_handler import (
     SubmissionData,
     SubmissionUnavailable,
     build_submission_request_packet,
+    r2_problems_enabled,
     require_r2_release,
 )
 
@@ -63,3 +64,11 @@ class R2OnlyDispatchTest(SimpleTestCase):
     @override_settings(BRIDGED_R2_PROBLEMS=False)
     def test_legacy_mode_allows_missing_release(self):
         require_r2_release(_data())
+
+    @override_settings(BRIDGED_R2_PROBLEMS=True)
+    def test_r2_mode_flag(self):
+        self.assertTrue(r2_problems_enabled())
+
+    @override_settings(BRIDGED_R2_PROBLEMS=False)
+    def test_legacy_mode_flag(self):
+        self.assertFalse(r2_problems_enabled())
