@@ -43,6 +43,10 @@ def require_r2_release(data):
         raise SubmissionUnavailable('submission has no published R2 problem release')
 
 
+def r2_problems_enabled():
+    return bool(getattr(settings, 'BRIDGED_R2_PROBLEMS', False))
+
+
 def build_submission_request_packet(id, problem, language, source, data):
     packet = {
         'name': 'submission-request',
@@ -165,7 +169,11 @@ class JudgeHandler(ZlibPacketHandler):
 
         self.update_runtimes()
 
-        if self.ignore_problems_packet:
+        if r2_problems_enabled():
+            codes = list(Problem.objects.values_list('code', flat=True))
+            self.problems = set(codes)
+            judge.problems.set(Problem.objects.filter(code__in=codes).values_list('id', flat=True))
+        elif self.ignore_problems_packet:
             self.problems = self.judges.problems
             judge.problems.set(self.judges.problem_ids)
         else:
@@ -386,7 +394,7 @@ class JudgeHandler(ZlibPacketHandler):
         json_log.info(self._make_json_log(action='update-problems', count=len(self.problems)))
 
     def on_supported_problems(self, packet):
-        if self.ignore_problems_packet:
+        if self.ignore_problems_packet or r2_problems_enabled():
             return
 
         problems = set(p[0] for p in packet['problems'])
