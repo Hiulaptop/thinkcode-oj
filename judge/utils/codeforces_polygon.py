@@ -320,10 +320,17 @@ class PolygonImporter:
         if len(testset.find('tests').getchildren()) == 0:
             raise ImportPolygonError('no testcases found')
 
+        names = set(self.package.namelist())
         input_path_pattern = testset.find('input-path-pattern').text
-        input_path = input_path_pattern % 1
-        if input_path not in self.package.namelist():
-            raise ImportPolygonError('not full package')
+        answer_path_pattern = testset.find('answer-path-pattern').text
+        for i, _test in enumerate(testset.find('tests').getchildren()):
+            input_path = input_path_pattern % (i + 1)
+            answer_path = answer_path_pattern % (i + 1)
+            missing = [path for path in (input_path, answer_path) if path not in names]
+            if missing:
+                raise ImportPolygonError(
+                    'not full package: missing ' + ', '.join(missing),
+                )
 
     def run(self):
         try:
@@ -336,12 +343,13 @@ class PolygonImporter:
             self.update_or_create_problem()
         except Exception:
             # Remove imported images
-            for image_url in self.meta['image_cache'].values():
+            for image_url in self.meta.get('image_cache', {}).values():
                 default_storage.delete(os.path.join(settings.MARTOR_UPLOAD_MEDIA_DIR, os.path.basename(image_url)))
 
             raise
         finally:
-            self.meta['tmp_dir'].cleanup()
+            if self.meta.get('tmp_dir') is not None:
+                self.meta['tmp_dir'].cleanup()
 
     def log(self, *args, **kwargs):
         if self.interactive:
@@ -506,8 +514,13 @@ class PolygonImporter:
                 input_file = f'{(i + 1):02d}.inp'
                 output_file = f'{(i + 1):02d}.out'
 
-                tests_zip.writestr(input_file, self.package.read(input_path))
-                tests_zip.writestr(output_file, self.package.read(answer_path))
+                try:
+                    tests_zip.writestr(input_file, self.package.read(input_path))
+                    tests_zip.writestr(output_file, self.package.read(answer_path))
+                except KeyError as e:
+                    raise ImportPolygonError(
+                        'not full package: missing ' + str(e).strip('"'),
+                    ) from e
 
                 self.meta['cases_data'].append({
                     'index': i,
