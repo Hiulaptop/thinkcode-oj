@@ -112,6 +112,7 @@ if USE_R2_MEDIA:
 # host network (see docker-compose.production.yml, network_mode: host).
 BRIDGED_JUDGE_ADDRESS = [(os.environ.get('BRIDGED_JUDGE_HOST', '0.0.0.0'), int(os.environ.get('BRIDGED_JUDGE_PORT', '9999')))]
 BRIDGED_DJANGO_ADDRESS = [(os.environ.get('BRIDGED_DJANGO_HOST', 'localhost'), int(os.environ.get('BRIDGED_DJANGO_PORT', '9998')))]
+BRIDGED_R2_PROBLEMS = os.environ.get('BRIDGED_R2_PROBLEMS', 'False') == 'True'
 
 ENABLE_FTS = False
 BAD_MAIL_PROVIDERS = set()
