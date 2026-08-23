@@ -124,12 +124,17 @@ remains on MariaDB; the backup job only runs `mariadb-dump --single-transaction`
 and uploads a compressed copy.
 
 Problem releases use `python manage.py publish_problem_release CODE VERSION`.
-Judges use `scripts/sync_problem_release.py` with a read-only problems-bucket
-credential. R2 is never mounted as the judge filesystem.
+The site bridge sends `problem-version` and `problem-sha256` on each
+submission. Judges with `r2_problems.enabled` download that package into
+`/var/cache/dmoj-problems` and grade from the cache. R2 is never FUSE-mounted.
+
+Set `BRIDGED_R2_PROBLEMS=True` only after judges understand the new packet
+fields. Until then, leave it false so missing release metadata does not
+block dispatch.
 
 Rollback for media is `USE_R2_MEDIA=False` followed by a normal CD deployment.
-The judge rollback is to keep the last verified local `/problems/<code>` tree;
-the sync script refuses checksum failures before replacing it.
+Rollback for judge R2 mode is `r2_problems.enabled: false` (or
+`R2_PROBLEMS_ENABLED=False`) and remount the local `/problems` tree.
 
 ## Runtime Config Tam
 
