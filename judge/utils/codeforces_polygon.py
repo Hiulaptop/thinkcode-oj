@@ -235,9 +235,62 @@ TEX_MACROS = r"""
 \renewcommand{\t}{\texttt}
 """
 
+_TEX_TOKEN = re.compile(
+    r'(?<!\\)%[^\n]*'
+    r'|\\begin\{([A-Za-z*]+)\}'
+    r'|\\end\{([A-Za-z*]+)\}',
+)
+_VERBATIM_ENVS = frozenset({
+    'verbatim', 'verbatim*', 'lstlisting', 'minted', 'alltt', 'Verbatim',
+})
+
+
+def close_unbalanced_tex_environments(tex):
+    stack = []
+    i = 0
+    skip_until = None
+    while i < len(tex):
+        if skip_until is not None:
+            pos = tex.find(skip_until, i)
+            if pos == -1:
+                break
+            i = pos
+            skip_until = None
+            continue
+
+        match = _TEX_TOKEN.search(tex, i)
+        if not match:
+            break
+        i = match.end()
+        if match.group(0).lstrip().startswith('%'):
+            continue
+
+        begin_env = match.group(1)
+        end_env = match.group(2)
+        if begin_env:
+            stack.append(begin_env)
+            if begin_env in _VERBATIM_ENVS:
+                skip_until = '\\end{' + begin_env + '}'
+        elif end_env:
+            if stack and stack[-1] == end_env:
+                stack.pop()
+            elif end_env in stack:
+                while stack and stack[-1] != end_env:
+                    stack.pop()
+                if stack:
+                    stack.pop()
+
+    if not stack:
+        return tex
+
+    suffix = ''.join(f'\\end{{{env}}}\n' for env in reversed(stack))
+    if tex.endswith('\n'):
+        return tex + suffix
+    return tex + '\n' + suffix
+
 
 def pandoc_tex_to_markdown(tex):
-    tex = TEX_MACROS + tex
+    tex = TEX_MACROS + close_unbalanced_tex_environments(tex)
     with tempfile.TemporaryDirectory() as tmp_dir:
         with open(os.path.join(tmp_dir, 'temp.tex'), 'w', encoding='utf-8') as f:
             f.write(tex)
@@ -245,11 +298,21 @@ def pandoc_tex_to_markdown(tex):
         with open(os.path.join(tmp_dir, 'filter.lua'), 'w', encoding='utf-8') as f:
             f.write(PANDOC_FILTER)
 
-        subprocess.run(
-            ['pandoc', '--lua-filter=filter.lua', '-t', 'gfm', '-o', 'temp.md', 'temp.tex'],
-            cwd=tmp_dir,
-            check=True,
-        )
+        try:
+            subprocess.run(
+                ['pandoc', '--lua-filter=filter.lua', '-f', 'latex', '-t', 'gfm',
+                 '-o', 'temp.md', 'temp.tex'],
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            detail = (e.stderr or e.stdout or '').strip()
+            message = 'pandoc failed to convert statement TeX to markdown'
+            if detail:
+                message += f': {detail}'
+            raise ImportPolygonError(message) from e
 
         with open(os.path.join(tmp_dir, 'temp.md'), 'r', encoding='utf-8') as f:
             md = f.read()
