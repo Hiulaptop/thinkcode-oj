@@ -1,47 +1,18 @@
 # CI/CD cho ThinkCode OJ
 
-> Thiết kế CD tự động: khi code được merge vào nhánh `deploy`, GitHub Actions build Docker image, push lên GHCR, SSH vào server và tự động thay thế dịch vụ đang chạy sau khi verify judge worker kết nối lại thành công.
->
-> Xem `docker-compose.production.yml`, `Dockerfile`, `deploy/deploy.sh`, `deploy/ssh-deploy-wrapper.sh`, `.github/workflows/deploy.yml`, `nginx/vnoj.conf.docker`, `dmoj/local_settings.docker.py.example` trong repo này.
+Toan bo logic CI/CD nam trong GitHub Actions:
 
----
-
-## 1. Kiến trúc tổng quan
-
-```
-git push (merge vào nhánh `deploy`)
-        │
-        ▼
-GitHub Actions: build.yml (lint/unit test/style) -- phải pass mới đi tiếp
-        │
-        ▼
-GitHub Actions: build Docker image (Dockerfile) trên runner
-        │
-        ▼
-push image lên ghcr.io/hiulaptop/thinkcode-oj:sha-<7 ký tự đầu commit>
-        │
-        ▼
-SSH (deploy key giới hạn, forced command) vào server 14.225.254.134
-        │
-        ▼
-ssh-deploy-wrapper.sh nhận lệnh, xác thực GHCR, gọi deploy.sh <image>
-        │
-        ▼
-deploy.sh trên server:
-  1. docker pull image mới
-  2. migrate (container tạm, DB thật, TRƯỚC khi đụng service đang chạy)
-  3. sync static assets ra /var/www/thinkcodeoj (nginx đọc trực tiếp)
-  4. docker compose up -d (cutover site/bridged/celery/wsevent)
-  5. verify: site HTTP 200 + judge worker online=True (poll tối đa 60s)
-  6a. verify OK -> ghi lại image hiện tại, deploy thành công
-  6b. verify FAIL -> tự động rollback về image cũ, verify lại, báo lỗi
+```text
+.github/workflows/ci.yml
+.github/workflows/cd.yml
 ```
 
-**Chỉ có 4 process được container hoá**: `site`, `bridged`, `celery`, `wsevent`. MariaDB, Redis, nginx **vẫn chạy native** như hiện tại — không đổi gì, không rủi ro dữ liệu. Container mới dùng `network_mode: host` để kết nối `127.0.0.1:3306`/`127.0.0.1:6379` y hệt cách process native đang làm.
+Server khong giu `deploy.sh`, SSH wrapper, source code, private key, `.env`,
+`local_settings.py` hoac file compose co dinh.
 
----
+## Flow
 
-## 2. Giới hạn kỹ thuật quan trọng: không có zero-downtime thật
+`ci.yml` chay tren push va pull request:
 
 **Không thể** làm blue-green deploy đúng nghĩa (chạy song song bản mới và bản cũ, test xong mới chuyển traffic) cho phần judge, vì:
 
@@ -75,28 +46,27 @@ sudo usermod -aG docker opencode
 mkdir -p /home/opencode/thinkcode-deploy
 ```
 
-Các file đã đặt tại `/home/opencode/thinkcode-deploy/`:
+Khi CI tren branch `deploy` thanh cong, `cd.yml` se:
 
-| File | Nguồn | Ghi chú |
-|---|---|---|
-| `deploy.sh` | `deploy/deploy.sh` trong repo | Copy thủ công lúc setup, sau đó **không đổi qua CD** -- chỉ cập nhật thủ công khi logic deploy thay đổi |
-| `ssh-deploy-wrapper.sh` | `deploy/ssh-deploy-wrapper.sh` trong repo | Forced command cho SSH deploy key (xem mục 4) |
-| `docker-compose.production.yml` | `docker-compose.production.yml` trong repo | Topology container, hiếm khi đổi |
-| `.env` | Điền thủ công từ `thinkcode/.env.production` | **Chứa secret thật** -- `chmod 600`, KHÔNG có trong git |
-| `local_settings.py` | Copy từ `dmoj/local_settings.docker.py.example`, không sửa gì (chỉ đọc `os.environ`) | **Chứa secret gián tiếp qua `.env`** -- `chmod 600` |
-| `current_image.txt` | Tự tạo bởi `deploy.sh` sau lần deploy thành công đầu tiên | Dùng để rollback |
-
-### 3.2. SSH deploy key (giới hạn tối đa)
-
-Đã tạo cặp key `ed25519` riêng cho CI/CD, **không** dùng chung với key cá nhân. Public key được cài vào `/home/opencode/.ssh/authorized_keys` với `command=` ép buộc:
-
+```text
+checkout dung commit da test
+build Docker image
+push image len GHCR
+SSH vao server
+truyen GitHub Secrets qua stdin
+docker login GHCR
+pull image
+check --deploy bang production env
+migrate database
+sync static assets
+docker compose down
+docker compose up -d
+xoa config tam tren server
 ```
-command="/home/opencode/thinkcode-deploy/ssh-deploy-wrapper.sh",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... github-actions-deploy@thinkcode-oj
-```
 
-Nghĩa là **kể cả nếu private key bị lộ**, kẻ tấn công dùng nó chỉ có thể chạy đúng `ssh-deploy-wrapper.sh` — không có shell tương tác, không port forwarding, không chạy được lệnh tuỳ ý nào khác. Đã test xác nhận: mọi lệnh SSH khác (`rm -rf`, `whoami`, shell tương tác...) đều bị từ chối với thông báo lỗi, chỉ format `deploy <image-ref>` (token GHCR truyền qua stdin, không qua argument để tránh lộ trong `ps aux`) được chấp nhận.
+## GitHub Secrets
 
-Private key được lưu làm GitHub Actions secret `DEPLOY_SSH_KEY` (xem mục 5).
+Tao GitHub Environment ten `production` va cac secrets:
 
 ### 3.3. Chuyển nginx sang trỏ TCP thay vì unix socket
 
@@ -145,70 +115,122 @@ Vào repo `thinkcode-oj` trên GitHub → **Settings → Secrets and variables �
 
 | Secret | Giá trị |
 |---|---|
-| `DEPLOY_SSH_KEY` | Nội dung **private key** `thinkcode_deploy` (toàn bộ, gồm `-----BEGIN OPENSSH PRIVATE KEY-----`...) |
-| `DEPLOY_HOST` | `14.225.254.134` |
-| `DEPLOY_USER` | `opencode` |
+| `DEPLOY_HOST` | IP hoac hostname production |
+| `DEPLOY_USER` | User SSH co quyen chay Docker |
+| `DEPLOY_SSH_KEY` | Private SSH key danh rieng cho CD |
+| `PRODUCTION_ENV` | Toan bo noi dung file env production |
 
-`GITHUB_TOKEN` không cần tạo thủ công -- GitHub tự cấp cho mỗi workflow run, có đủ quyền `packages: write` để push GHCR (đã khai báo trong `deploy.yml`) và cũng được dùng làm token đăng nhập GHCR trên server (đủ quyền `read:packages` cho cùng repo).
+`GITHUB_TOKEN` duoc GitHub cap tu dong de push image va login GHCR.
 
-### Khuyến nghị thêm (chưa bắt buộc)
+`PRODUCTION_ENV` la multiline secret, vi du:
 
-- Vào **Settings → Environments**, tạo environment `production` với **required reviewers** -- deploy sẽ dừng chờ 1 người approve thủ công trước khi chạy job `deploy` (job `build-and-push` vẫn chạy tự động). Hữu ích để tránh merge nhầm vào `deploy` gây deploy ngay lập tức ngoài ý muốn.
-- Bật **branch protection** cho nhánh `deploy`: require `build.yml` pass trước khi merge được phép.
-
----
-
-## 5. Quy trình sử dụng hằng ngày
-
-```bash
-# Làm việc bình thường trên nhánh feature/master
-git checkout master
-git pull
-# ... code, commit ...
-git push origin master
-
-# Khi sẵn sàng lên production: merge master vào deploy
-git checkout deploy
-git merge master
-git push origin deploy
-# -> trigger CD tự động, xem tiến trình tại GitHub Actions tab
+```dotenv
+DJANGO_SECRET_KEY=...
+DJANGO_DEBUG=False
+ALLOWED_HOSTS=oj.thinkcode.vn
+CSRF_TRUSTED_ORIGINS=https://oj.thinkcode.vn
+DB_NAME=dmoj
+DB_USER=dmoj
+DB_PASSWORD=...
+DB_HOST=127.0.0.1
+DB_PORT=3306
+REDIS_URL=redis://127.0.0.1:6379/0
+CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/0
 ```
 
-Hoặc dùng Pull Request `master` → `deploy` trên GitHub UI để có review trước khi merge (khuyến nghị).
+Khong dua secret production vao Dockerfile, source code hoac image layer.
 
----
+## Production Image
 
-## 6. Rollback thủ công (nếu auto-rollback cũng thất bại)
+`dmoj/local_settings.docker.py.example` khong chua secret va duoc copy vao
+image voi ten `dmoj/local_settings.py` khi build.
 
-```bash
-ssh opencode@14.225.254.134
-cd /home/opencode/thinkcode-deploy
+File nay doc cau hinh tu environment runtime. CD truyen `PRODUCTION_ENV` vao
+cac container bang `--env-file` hoac Compose.
 
-# Xem trạng thái hiện tại
-docker compose -f docker-compose.production.yml --env-file .env ps
-docker compose -f docker-compose.production.yml --env-file .env logs --tail=100
+## Server Setup
 
-# Xem image nào đang chạy trước lần deploy lỗi
-cat current_image.txt
+Server chi can:
 
-# Rollback thủ công về 1 image cụ thể (ví dụ image trước đó theo git log trên GitHub)
-IMAGE_TAG=ghcr.io/hiulaptop/thinkcode-oj:sha-<commit-cu> \
-  docker compose -f docker-compose.production.yml --env-file .env up -d --remove-orphans
+- Docker Engine
+- Docker Compose plugin
+- User deploy thuoc group `docker`
+- Public SSH key tuong ung voi `DEPLOY_SSH_KEY`
+- Cac thu muc du lieu persistent:
+  - `/var/www/thinkcodeoj/media`
+  - `/var/www/thinkcodeoj/problem_data`
+  - `/var/www/thinkcodeoj/static`
+  - `/var/log/thinkcodeoj`
 
-# Kiểm tra judge worker reconnect
-docker compose -f docker-compose.production.yml --env-file .env exec site \
-  python3 manage.py shell -c "from judge.models import Judge; print(list(Judge.objects.values('name', 'online')))"
+Public key trong `~/.ssh/authorized_keys` nen gioi han forwarding:
+
+```text
+no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty ssh-ed25519 AAAA... github-actions-cd
 ```
 
 **Không còn phương án rollback native tức thời.** Trước 15/08/2026, `/home/opencode/vnojsite/` (source code + venv Python 3.8 native) và 4 file config supervisor (`bridged.conf`, `celery.conf`, `site.conf`, `wsevent.conf`) vẫn còn nguyên trên server, cho phép `sudo supervisorctl start site bridged celery wsevent` khôi phục ngay trong vài giây nếu Docker gặp sự cố không cứu được. Theo yêu cầu "server không giữ source code gì cả, chỉ pull image về chạy", toàn bộ đã bị xoá (config supervisor backup tại `/root/supervisor-native-backup/` trên server chỉ để tham khảo, KHÔNG dùng để chạy lại trực tiếp -- venv/node_modules đã mất).
 
 Nếu Docker hoàn toàn không cứu được (lỗi hạ tầng nghiêm trọng, không phải lỗi image/code -- những trường hợp đó dùng rollback qua `deploy.sh`/`current_image.txt` ở trên), phương án duy nhất còn lại là cài native từ đầu bằng `vnoi_setup.sh`/`dmoj_judge_setup.sh` -- 2 script này **không nằm trong repo `thinkcode-oj`** (chưa từng được commit vào git nào), chỉ tồn tại local tại `/home/hlt/Documents/Projects/` trên máy phát triển; cần lấy lại từ đó trước khi chạy trên server. Toàn bộ quá trình mất khoảng 15-30 phút thay vì vài giây. `vnoj.conf.native.bak` (config nginx trỏ unix socket, không phải TCP) vẫn còn trên server tại `/etc/nginx/conf.d/`, có thể dùng lại sau khi site native được cài đặt lại.
 
----
+## R2 Storage
 
-## 7. Hướng mở rộng (chưa làm, ghi lại để tham khảo)
+R2 credentials are runtime-only. Do not put them in the Dockerfile, image,
+repository, or a persistent server compose file. The application reads the
+following variables from `PRODUCTION_ENV` when `USE_R2_MEDIA=True`:
 
-- **Chấm thử 1 bài test thật** thay vì chỉ check `online=True`: sau bước 5 trong `deploy.sh`, submit 1 submission mẫu qua `manage.py shell`/management command riêng, poll `Submission.status` tới khi có kết quả AC, mới coi là verify thành công. Cần chuẩn bị sẵn 1 problem test cố định trong DB (không lẫn với problem thật của contest).
-- **True zero-downtime cho judge**: cần ít nhất 2 judge worker (worker thứ 2 trỏ về 1 bridge port khác, hoặc scale ngang qua hàng đợi trung gian) để có thể drain traffic dần dần thay vì cutover cả 1 lúc.
-- **Container hoá DB/Redis**: nếu muốn đồng bộ hoàn toàn với `thinkcode-docker` (fork của `vnoj-docker`), cần kế hoạch di chuyển dữ liệu MariaDB hiện có vào Docker volume + thiết lập backup mới, rủi ro cao hơn nên cố tình để ngoài phạm vi CD lần này.
-- **Approval gate trong GitHub Environments** (mục 4) nếu muốn kiểm soát chặt hơn thời điểm deploy thực tế chạy.
+```dotenv
+USE_R2_MEDIA=False
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+R2_MEDIA_BUCKET=thinkcode-media
+R2_MEDIA_CUSTOM_DOMAIN=media.oj.thinkcode.vn
+R2_MEDIA_PRIVATE=False
+R2_PROBLEMS_BUCKET=thinkcode-problems
+```
+
+MariaDB backups use a separate, backup-only R2 credential and the
+`deploy/thinkcode-r2-backup.service` and `.timer` templates. The live database
+remains on MariaDB; the backup job only runs `mariadb-dump --single-transaction`
+and uploads a compressed copy.
+
+Problem releases use `python manage.py publish_problem_release CODE VERSION`.
+The site bridge sends `problem-version` and `problem-sha256` on each
+submission. Judges with `r2_problems.enabled` download that package into
+`/var/cache/dmoj-problems` and grade from the cache. R2 is never FUSE-mounted.
+
+Set GitHub Actions variable `BRIDGED_R2_PROBLEMS=True` only after judges
+understand the new packet fields. Until then, leave it false so missing
+release metadata does not block dispatch. CD injects this into the
+runtime env for `site`/`bridged`/`celery`.
+
+Rollback for media is `USE_R2_MEDIA=False` followed by a normal CD deployment.
+Rollback for judge R2 mode is `r2_problems.enabled: false` (or
+`R2_PROBLEMS_ENABLED=False`) and remount the local `/problems` tree.
+
+## Runtime Config Tam
+
+Moi lan deploy, `cd.yml`:
+
+1. Ma hoa noi dung `PRODUCTION_ENV` va `docker-compose.production.yml` bang base64 de truyen qua stdin.
+2. Ghi chung vao `/tmp/thinkcode-deploy` tren server.
+3. Chay validation, migration va Compose.
+4. Xoa thu muc tam bang shell trap khi ket thuc.
+
+Khong co file cau hinh deploy nao duoc giu lai sau workflow. Container van giu
+environment runtime da duoc Docker nap khi khoi dong.
+
+## Downtime Va Rollback
+
+CD dung flow don gian:
+
+```bash
+docker compose down --remove-orphans
+```
+
+Vi vay co downtime ngan trong luc bon service `site`, `bridged`, `celery`,
+`wsevent` duoc thay the. MariaDB, Redis va nginx native khong bi dung.
+
+Phase nay chua co rollback tu dong. Image tag theo commit cho phep rollback
+thu cong bang cach chay lai CD voi commit cu.

@@ -127,6 +127,7 @@ class ProblemTestCase(CommonDataMixin, TestCase):
         self.assertListEqual(list(self.basic_problem.editor_ids), [self.users['normal'].profile.id])
         self.assertListEqual(list(self.basic_problem.tester_ids), [self.users['staff_problem_edit_public'].profile.id])
         self.assertListEqual(list(self.basic_problem.usable_languages), [])
+        self.assertListEqual(list(self.basic_problem.available_judges()), [])
         self.assertListEqual(self.basic_problem.types_list, ['type'])
         self.assertSetEqual(self.basic_problem.usable_common_names, set())
 

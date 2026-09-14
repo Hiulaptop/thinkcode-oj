@@ -25,7 +25,8 @@ UPDATE_RATE_LIMIT = 5
 UPDATE_RATE_TIME = 0.5
 SubmissionData = namedtuple(
     'SubmissionData',
-    'time memory short_circuit pretests_only contest_no attempt_no user_id file_only file_size_limit',
+    'time memory short_circuit pretests_only contest_no attempt_no user_id '
+    'file_only file_size_limit problem_version problem_sha256 problem_package_key',
 )
 
 
@@ -35,6 +36,43 @@ def _ensure_connection():
 
 class SubmissionUnavailable(Exception):
     """Raised when a submission cannot be prepared for dispatch, in which case no judge is at fault."""
+
+
+def require_r2_release(data):
+    if getattr(settings, 'BRIDGED_R2_PROBLEMS', False) and not data.problem_sha256:
+        raise SubmissionUnavailable('submission has no published R2 problem release')
+
+
+def r2_problems_enabled():
+    return bool(getattr(settings, 'BRIDGED_R2_PROBLEMS', False))
+
+
+def build_submission_request_packet(id, problem, language, source, data):
+    packet = {
+        'name': 'submission-request',
+        'submission-id': id,
+        'problem-id': problem,
+        'language': language,
+        'source': source,
+        'time-limit': data.time,
+        'memory-limit': data.memory,
+        'short-circuit': data.short_circuit,
+        'meta': {
+            'pretests-only': data.pretests_only,
+            'in-contest': data.contest_no,
+            'attempt-no': data.attempt_no,
+            'user': data.user_id,
+            'file-only': data.file_only,
+            'file-size-limit': data.file_size_limit,
+        },
+    }
+    if data.problem_version:
+        packet['problem-version'] = data.problem_version
+    if data.problem_sha256:
+        packet['problem-sha256'] = data.problem_sha256
+    if data.problem_package_key:
+        packet['problem-package-key'] = data.problem_package_key
+    return packet
 
 
 class JudgeHandler(ZlibPacketHandler):
@@ -131,7 +169,11 @@ class JudgeHandler(ZlibPacketHandler):
 
         self.update_runtimes()
 
-        if self.ignore_problems_packet:
+        if r2_problems_enabled():
+            codes = list(Problem.objects.values_list('code', flat=True))
+            self.problems = set(codes)
+            judge.problems.set(Problem.objects.filter(code__in=codes).values_list('id', flat=True))
+        elif self.ignore_problems_packet:
             self.problems = self.judges.problems
             judge.problems.set(self.judges.problem_ids)
         else:
@@ -183,8 +225,11 @@ class JudgeHandler(ZlibPacketHandler):
         self._connected()
 
     def can_judge(self, problem, executor, judge_id=None):
-        return problem in self.problems and executor in self.executors and  \
+        executor_ok = executor in self.executors and \
             ((not judge_id and not self.is_disabled) or self.name == judge_id)
+        if getattr(settings, 'BRIDGED_R2_PROBLEMS', False):
+            return executor_ok
+        return problem in self.problems and executor_ok
 
     @property
     def working(self):
@@ -195,12 +240,15 @@ class JudgeHandler(ZlibPacketHandler):
 
         try:
             pid, time, memory, short_circuit, lid, is_pretested, sub_date, uid, part_virtual, part_id, \
-                file_only, file_size_limit = (
+                file_only, file_size_limit, problem_version, problem_sha256, problem_package_key = (
                     Submission.objects.filter(id=submission)
                               .values_list('problem__id', 'problem__time_limit', 'problem__memory_limit',
                                            'problem__short_circuit', 'language__id', 'is_pretested', 'date',
                                            'user__id', 'contest__participation__virtual', 'contest__participation__id',
-                                           'language__file_only', 'language__file_size_limit')).get()
+                                           'language__file_only', 'language__file_size_limit',
+                                           'problem__data_files__r2_release_version',
+                                           'problem__data_files__r2_release_sha256',
+                                           'problem__data_files__r2_release_key')).get()
         except Submission.DoesNotExist:
             logger.error('Submission vanished: %s', submission)
             json_log.error(self._make_json_log(
@@ -228,6 +276,9 @@ class JudgeHandler(ZlibPacketHandler):
             user_id=uid,
             file_only=file_only,
             file_size_limit=file_size_limit,
+            problem_version=problem_version or '',
+            problem_sha256=problem_sha256 or '',
+            problem_package_key=problem_package_key or '',
         )
 
     def disconnect(self, force=False):
@@ -242,26 +293,12 @@ class JudgeHandler(ZlibPacketHandler):
         if data is None:
             raise SubmissionUnavailable('submission %s vanished before it could be dispatched' % id)
 
+        require_r2_release(data)
+
         self._working = id
         self._no_response_job = threading.Timer(20, self._kill_if_no_response)
-        self.send({
-            'name': 'submission-request',
-            'submission-id': id,
-            'problem-id': problem,
-            'language': language,
-            'source': source if not data.file_only else get_absolute_submission_file_url(source),
-            'time-limit': data.time,
-            'memory-limit': data.memory,
-            'short-circuit': data.short_circuit,
-            'meta': {
-                'pretests-only': data.pretests_only,
-                'in-contest': data.contest_no,
-                'attempt-no': data.attempt_no,
-                'user': data.user_id,
-                'file-only': data.file_only,
-                'file-size-limit': data.file_size_limit,
-            },
-        })
+        source_payload = source if not data.file_only else get_absolute_submission_file_url(source)
+        self.send(build_submission_request_packet(id, problem, language, source_payload, data))
 
     def _kill_if_no_response(self):
         logger.error('Judge failed to acknowledge submission: %s: %s', self.name, self._working)
@@ -357,7 +394,7 @@ class JudgeHandler(ZlibPacketHandler):
         json_log.info(self._make_json_log(action='update-problems', count=len(self.problems)))
 
     def on_supported_problems(self, packet):
-        if self.ignore_problems_packet:
+        if self.ignore_problems_packet or r2_problems_enabled():
             return
 
         problems = set(p[0] for p in packet['problems'])
