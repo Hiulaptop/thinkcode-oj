@@ -1,38 +1,30 @@
-# VNOJ: VNOI Online Judge [![Build Status](https://github.com/VNOI-Admin/OJ/workflows/build/badge.svg)](https://github.com/VNOI-Admin/OJ/actions/) [![AGPL License](https://img.shields.io/badge/license-AGPLv3.0-blue.svg)](http://www.gnu.org/licenses/agpl-3.0) [![Discord link](https://img.shields.io/discord/660930260405190688?color=%237289DA&label=Discord&logo=Discord)](https://discord.com/invite/TDyYVyd)
+# ThinkCode OJ
 
-As a fork of [DMOJ](https://github.com/DMOJ/online-judge), VNOJ serves as [VNOI](https://team.vnoi.info/)'s official online judge and hosts its programming contests.
-
-See it live at [oj.vnoi.info](https://oj.vnoi.info/)!
+Fork of [VNOJ](https://github.com/VNOI-Admin/OJ) / [DMOJ](https://github.com/DMOJ/online-judge). Live at [oj.thinkcode.vn](https://oj.thinkcode.vn/).
 
 ## Features
 
-Check out its features [here](https://github.com/DMOJ/online-judge#features).
+See [DMOJ's feature list](https://github.com/DMOJ/online-judge#features).
 
 ## Installation
 
-Refer to the install documentation [here](https://vnoi-admin.github.io/vnoj-docs/#/site/installation). Almost all installation steps remain the same as the docs, but there are several minor differences, including cloning this repo instead of DMOJ's repo.
+Native install follows [VNOJ docs](https://vnoi-admin.github.io/vnoj-docs/#/site/installation). Clone this repo instead of DMOJ or VNOJ.
 
-### Additional installation steps
+Production is Docker-only. GitHub Actions builds `ghcr.io/hiulaptop/thinkcode-oj` and deploys over SSH. Details: [CI-CD.md](CI-CD.md). Runtime settings come from env; the image copies `dmoj/local_settings.docker.py.example` to `dmoj/local_settings.py`.
 
-- You **have to** define `DMOJ_PROBLEM_DATA_ROOT` in `local_settings.py`, which should be the path to the directory that contains your problems' tests.
+### Notes
 
-- Regarding disabling full-text search, please read [this issue](https://github.com/VNOI-Admin/OJ/issues/4) for more information.
+- Set `DMOJ_PROBLEM_DATA_ROOT` (Docker default: `/problems`). That directory holds the site's working copies. Production judges pull packages from R2 (`BRIDGED_R2_PROBLEMS=True`); they do not read this tree.
+- Leave `ENABLE_FTS = False` unless you configure MySQL full-text search. Background: [VNOI-Admin/OJ#4](https://github.com/VNOI-Admin/OJ/issues/4).
+- Point `CACHES` at Redis so site, bridged, celery, and the judge share cache. Keep redis-py on RESP2 (`CONNECTION_POOL_KWARGS: {protocol: 2}`). That pin was required on Redis 5; production now runs Redis 8 and still uses it.
+- `python3 manage.py loaddata demo` sets the Sites domain to `localhost:8081`. Edit `judge/fixtures/demo.json` or Django admin → Sites.
+- Polygon import needs pandoc ≥ 3.0 on the site image (`Dockerfile` installs 3.10.2).
+- Load MariaDB timezone tables or `CONVERT_TZ` returns `NULL` (`USE_TZ=True`, default user tz `Asia/Ho_Chi_Minh`):
 
-- To sync the judge server and the site's cache, change the cache framework (`CACHES`) to `memcached` or `redis` instead of the default (local-memory caching).
+      mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql mysql
 
-- If you use `python3 manage.py loaddata demo`, the home button in the admin dashboard (/admin) links you to `localhost:8081`, there are 2 ways to change that:
+- Put [testlib.h](https://github.com/MikeMirzayanov/testlib/blob/master/testlib.h) on the **judge** image (`thinkcode-judge-server`), in g++'s include path. Precompile the header if compile times hurt.
 
-  1. You can change that in [demo.json](/judge/fixtures/demo.json)
-  2. You can go to the admin page, scroll down to find the `Sites` setting and change `localhost:8081` to your domain.
+## Contributing
 
-- To support `testlib.h`, you need to copy [testlib.h](https://github.com/MikeMirzayanov/testlib/blob/master/testlib.h) to `g++`'s include path in the judge server. To speed up compile time, you can also create a precompiled header for `testlib.h`.
-
-## Contributing ![PR's Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)
-
-Take a look at [our contribution guideline](contributing.md).
-
-If you find any bug, please feel free to contact us via Discord [![Discord Chat](https://img.shields.io/discord/660930260405190688?color=%237289DA&label=Discord&logo=Discord)](https://discord.gg/TDyYVyd) or open an issue.
-
-Pull requests are welcome as well. Before you submit your PR, please check your code with [flake8](https://flake8.pycqa.org/en/latest/) and format it if needed. There's also `prettier` if you need to format JS code (in `websocket/`).
-
-Translation contributions are also welcome.
+flake8 on Python. prettier on JS under `websocket/`. See [contributing.md](contributing.md).
