@@ -4,22 +4,27 @@
 $is_light_theme: true;
 
 $color_primary0: #fff;
-$color_primary5: #f8f8f8;   // light background
-$color_primary10: #eee;     // background
-$color_primary25: #ccc;     // border
-$color_primary33: #aaa;     // widget
-$color_primary50: #808080;
-$color_primary66: #555;     // tabs
-$color_primary75: #231f20;  // widget
-$color_primary90: #111;
+$color_primary5: #fffdf7;   // light background (card/panel bg)
+$color_primary10: #fcefc7;  // background (subtle gold tint, stripes/headers)
+$color_primary25: #decc99;  // border
+$color_primary33: #b8a46b;  // widget
+$color_primary50: #736b5c;
+$color_primary66: #4a4436;  // tabs
+$color_primary75: #141414;  // widget
+$color_primary90: #141414;
 $color_primary100: #000;
 
-$color_link50: #5b80b9;     // default (title)
-$color_link75: #1958c1;     // default
-$color_link100: #0645ad;    // hover
-$color_link200: #faa700;    // active
+$color_link50: #5b86c9;     // default (title)
+$color_link75: #0f66cc;     // default
+$color_link100: #0b4fa0;    // hover
+$color_link200: #d8a020;    // active
 
-$color_pageBg: color.adjust($color_primary5, $lightness: 10%);
+$color_pageBg: #fef6e0;
+
+// Navbar (top nav) — light theme: gold50 bg, ink text, white pill on hover/active
+$color_navbar_bg: #fef6e0;
+$color_navbar_text: #141414;
+$color_navbar_hover_bg: #ffffff;
 
 // custom one-off colours
 $color_contest_ranking_disqualified: #ffa8a8;

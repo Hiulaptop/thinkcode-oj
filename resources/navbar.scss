@@ -62,7 +62,7 @@
     left: 0;
     width: 100%;
     height: 56px;
-    background: #231f20;
+    background: $color_navbar_bg;
 }
 
 #nav-shadow {
@@ -71,7 +71,7 @@
 }
 
 #nav-container {
-    background: #231f20;
+    background: $color_navbar_bg;
 
     // opacity: 0.77
     // filter: alpha(opacity=77)
@@ -92,7 +92,7 @@ nav {
 
         li {
             display: inline-block;
-            color: #FFF;
+            color: $color_navbar_text;
             text-transform: uppercase;
             position: relative;
             font-family: 'Source Sans Pro', sans-serif;
@@ -110,27 +110,38 @@ nav {
             a, button {
                 text-decoration: none;
                 vertical-align: middle;
-                color: #FFF;
+                color: $color_navbar_text;
                 padding: 14px 7px;
                 height: 20px;
                 display: inline-table;
 
                 &:link {
-                    color: #FFF;
+                    color: $color_navbar_text;
                 }
 
-                &:hover {
-                    color: #FFF;
-                    background: rgba(255, 255, 255, 0.25);
-                    margin: 0;
-                }
+                @if $is_light_theme {
+                    &:hover, &.active {
+                        color: $color_navbar_text;
+                        background: $color_navbar_hover_bg;
+                        border: 5px solid transparent;
+                        border-radius: 8px;
+                        padding: 9px 9px;
+                        margin: 0;
+                    }
+                } @else {
+                    &:hover {
+                        color: $color_navbar_text;
+                        background: $color_navbar_hover_bg;
+                        margin: 0;
+                    }
 
-                &.active {
-                    color: #FFF;
+                    &.active {
+                        color: $color_navbar_text;
 
-                    border: 5px solid transparent;
-                    border-bottom: 5px solid $highlight_blue;
-                    padding: 9px 2px;
+                        border: 5px solid transparent;
+                        border-bottom: 5px solid $highlight_blue;
+                        padding: 9px 2px;
+                    }
                 }
 
                 .nav-expand {
@@ -143,8 +154,8 @@ nav {
                 position: absolute;
                 left: 5px;
                 display: none;
-                color: #fff;
-                background: #231f20;
+                color: $color_navbar_text;
+                background: $color_navbar_bg;
                 margin: 0 !important;
                 box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
 
@@ -198,8 +209,15 @@ nav {
         display: inline-block;
         height: 32px;
         margin-right: 1px;
-        border-right: 3px solid rgba(255, 255, 255, 0.15);
+        border-right: 3px solid if($is_light_theme, rgba(0, 0, 0, 0.15), rgba(255, 255, 255, 0.15));
     }
+}
+
+.site-logo-text {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: $color_navbar_text;
 }
 
 #navicon {
@@ -216,7 +234,7 @@ nav {
         display: block;
         line-height: 26px;
         font-size: 2em;
-        color: #FFF;
+        color: $color_navbar_text;
         padding: 0 0.25em;
         margin: 4px 0.25em;
         white-space: nowrap;
@@ -235,7 +253,7 @@ nav {
         margin: 0;
         position: fixed;
         top: 36px;
-        background: #231f20;
+        background: $color_navbar_bg;
         bottom: 0;
         width: 8em;
         left: 0;

@@ -20,6 +20,11 @@ $color_link200: #d83;   // active
 
 $color_pageBg: #222;    // #222 because some elements should be darker than pageBg
 
+// Navbar (top nav) — dark theme: unchanged original look
+$color_navbar_bg: #231f20;
+$color_navbar_text: #ffffff;
+$color_navbar_hover_bg: rgba(255, 255, 255, 0.25);
+
 // custom one-off colours
 $color_contest_ranking_disqualified: #622;
 
