@@ -4,7 +4,7 @@
     top: 0;
     right: 0;
     position: absolute;
-    color: #5c5954;
+    color: $color_navbar_text;
     padding-right: 10px;
     display: inline-flex;
     min-height: 100%;
@@ -12,7 +12,7 @@
     white-space: nowrap;
 
     a {
-        color: #FFF;
+        color: $color_navbar_text;
     }
 
     li {
@@ -43,7 +43,7 @@
 
                     & > span {
                         vertical-align: middle;
-                        color: #eee;
+                        color: $color_navbar_text;
                     }
                 }
             }
@@ -218,6 +218,10 @@ nav {
     font-weight: 700;
     letter-spacing: -0.02em;
     color: $color_navbar_text;
+}
+
+.nav-muted-icon {
+    color: if($is_light_theme, rgba(20, 20, 20, 0.55), rgba(255, 255, 255, 0.65));
 }
 
 #navicon {

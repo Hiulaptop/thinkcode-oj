@@ -49,11 +49,11 @@
             align-items: center;
             justify-content: space-between;
             padding: 8px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            border-bottom: 1px solid $color_primary25;
             white-space: nowrap;
 
             .notification-panel-title {
-                color: #fff;
+                color: $color_navbar_text;
                 font-weight: bold;
             }
 
@@ -61,7 +61,7 @@
                 padding: 0 !important;
                 border: none !important;
                 font-size: 0.75em;
-                color: #4db7fe;
+                color: $color_link75;
 
                 &:hover {
                     background: none;
@@ -77,7 +77,7 @@
                 padding: 8px 12px !important;
                 border-left: 4px solid transparent !important;
                 white-space: normal !important;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+                border-bottom: 1px solid $color_primary25;
 
                 &.unread {
                     border-left-color: $highlight_blue !important;
@@ -87,10 +87,11 @@
                 .notification-item-title {
                     font-weight: bold;
                     margin-bottom: 2px;
+                    color: $color_navbar_text;
                 }
 
                 .notification-item-body {
-                    color: #ccc;
+                    color: $color_primary66;
                     overflow: hidden;
                     text-overflow: ellipsis;
                     display: -webkit-box;
@@ -99,7 +100,7 @@
                 }
 
                 .notification-item-time {
-                    color: #999;
+                    color: $color_primary50;
                     font-size: 0.75em;
                     margin-top: 2px;
                 }
@@ -107,7 +108,7 @@
 
             .notification-empty {
                 padding: 16px 12px;
-                color: #999;
+                color: $color_primary50;
                 text-align: center;
 
                 &.hidden {
@@ -118,7 +119,7 @@
 
         .notification-panel-footer {
             text-align: center;
-            border-top: 1px solid rgba(255, 255, 255, 0.15);
+            border-top: 1px solid $color_primary25;
 
             a {
                 font-size: 0.8em;
