@@ -245,11 +245,14 @@ def pandoc_tex_to_markdown(tex):
         with open(os.path.join(tmp_dir, 'filter.lua'), 'w', encoding='utf-8') as f:
             f.write(PANDOC_FILTER)
 
-        subprocess.run(
+        result = subprocess.run(
             ['pandoc', '--lua-filter=filter.lua', '-t', 'gfm', '-o', 'temp.md', 'temp.tex'],
             cwd=tmp_dir,
-            check=True,
+            capture_output=True,
+            text=True,
         )
+        if result.returncode != 0:
+            raise ImportPolygonError('pandoc failed to convert TeX to markdown: %s' % result.stderr.strip())
 
         with open(os.path.join(tmp_dir, 'temp.md'), 'r', encoding='utf-8') as f:
             md = f.read()
