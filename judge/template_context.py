@@ -92,9 +92,14 @@ def site_theme(request):
     if hasattr(request.user, 'profile'):
         site_theme = request.profile.site_theme
     else:
-        site_theme = request.COOKIES.get(settings.SITE_THEME_COOKIE_NAME, 'auto')
+        # Default to 'light' (not 'auto') so anonymous visitors match the
+        # Profile.site_theme default logged-in users get -- otherwise
+        # anonymous pages follow the OS's prefers-color-scheme while logged-in
+        # pages force light, flipping the theme right at login for anyone
+        # whose OS prefers dark.
+        site_theme = request.COOKIES.get(settings.SITE_THEME_COOKIE_NAME, 'light')
         if site_theme not in settings.DMOJ_THEME_CSS and site_theme != 'auto':
-            site_theme = 'auto'
+            site_theme = 'light'
     preferred_css = settings.DMOJ_THEME_CSS.get(site_theme)
     return {
         'DARK_STYLE_CSS': settings.DMOJ_THEME_CSS['dark'],
