@@ -112,13 +112,23 @@ if USE_R2_MEDIA:
 # host network (see docker-compose.production.yml, network_mode: host).
 BRIDGED_JUDGE_ADDRESS = [(os.environ.get('BRIDGED_JUDGE_HOST', '0.0.0.0'), int(os.environ.get('BRIDGED_JUDGE_PORT', '9999')))]
 BRIDGED_DJANGO_ADDRESS = [(os.environ.get('BRIDGED_DJANGO_HOST', 'localhost'), int(os.environ.get('BRIDGED_DJANGO_PORT', '9998')))]
+# Only needed when site and bridged are NOT on the same network namespace
+# (e.g. a bridge-network docker-compose for local dev, where BRIDGED_DJANGO_HOST
+# above is the bridged container's *bind* address, 0.0.0.0, which site can't
+# dial back into -- it needs bridged's service name instead). Unset in
+# production (host networking), so this stays None and judgeapi.py falls back
+# to BRIDGED_DJANGO_ADDRESS[0], unchanged from before this option existed.
+BRIDGED_DJANGO_CONNECT = (
+    (os.environ['BRIDGED_DJANGO_CONNECT_HOST'], int(os.environ.get('BRIDGED_DJANGO_CONNECT_PORT', '9998')))
+    if os.environ.get('BRIDGED_DJANGO_CONNECT_HOST') else None
+)
 BRIDGED_R2_PROBLEMS = os.environ.get('BRIDGED_R2_PROBLEMS', 'False') == 'True'
 
 ENABLE_FTS = False
 BAD_MAIL_PROVIDERS = set()
 
 EVENT_DAEMON_USE = True
-EVENT_DAEMON_POST = f"ws://127.0.0.1:{os.environ.get('WSEVENT_POST_PORT', '15101')}/"
+EVENT_DAEMON_POST = f"ws://{os.environ.get('WSEVENT_POST_HOST', '127.0.0.1')}:{os.environ.get('WSEVENT_POST_PORT', '15101')}/"
 EVENT_DAEMON_GET = f"wss://{os.environ.get('DMOJ_CANONICAL', 'oj.thinkcode.vn')}/event/"
 EVENT_DAEMON_POLL = '/channels/'
 

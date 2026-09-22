@@ -84,9 +84,10 @@ th {
 .form-area {
     display: inline-block;
     background: $color_primary5;
-    padding: 5px 10px 10px;
-    border-radius: $widget_border_radius;
+    padding: 20px 26px 26px;
+    border-radius: 8px;
     border: 1px solid $color_primary25;
+    box-shadow: 0 2px 8px rgba($color_primary100, 0.06);
 }
 
 div.info-float {
