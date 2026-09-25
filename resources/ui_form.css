@@ -1,7 +1,9 @@
 .helptext {
-    font-size: 15px;
-    color: #999;
-    border-width: 0 0 1px 0;
+    display: block;
+    font-size: 0.85em;
+    color: #8a8478;
+    margin-top: 5px;
+    line-height: 1.4;
 }
 .helptext::before {
     font-family: FontAwesome;
@@ -9,41 +11,94 @@
     font-weight: normal;
     line-height: 1;
     content: "\f05a";
-    padding-right: 5px;
-    font-size: 15px;
-}
-.django-as-table {
-    border-collapse:collapse;
-}
-.django-as-table th, td {
-    padding-bottom: 10px;
-}
-.django-as-table th {
-    max-width: 10em;
-    width: 10em;
+    padding-right: 6px;
+    opacity: 0.7;
 }
 
-.django-as-table input:not([type='checkbox']) {
-    width: 30em;
+.django-as-table {
+    border-collapse: collapse;
+    /* fixed: column widths come from the th/td widths below, not from
+       guessing at how wide each row's content "wants" to be -- without this,
+       the browser's auto table layout squeezes the label column down to fit
+       wide rows (the markdown editor, 100%-wide inputs), and labels like
+       "Show short form settings display:" wrap onto 4-5 lines. */
+    table-layout: fixed;
+    width: 100%;
+    max-width: 45em;
+}
+
+.django-as-table tr {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+
+.django-as-table tr:last-child {
+    border-bottom: none;
+}
+
+.django-as-table th,
+.django-as-table td {
+    box-sizing: border-box;
+    padding: 14px 0;
+    vertical-align: top;
+    text-align: left;
+}
+
+.django-as-table th {
+    width: 13em;
+    padding-right: 20px;
+    font-weight: 600;
+    padding-top: 15px;
+}
+
+.django-as-table td {
+    width: auto;
+}
+
+.django-as-table input:not([type="checkbox"]),
+.django-as-table select,
+.django-as-table textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Checkbox rows read better with the box lined up next to the label
+   instead of indented under it like a text field would be. */
+.django-as-table tr:has(> td > input[type="checkbox"]:first-child) th,
+.django-as-table tr:has(> td > input[type="checkbox"]:first-child) td {
+    padding-top: 14px;
+    vertical-align: middle;
+}
+
+.django-as-table tr:has(> td > input[type="checkbox"]:first-child) .helptext {
+    display: inline-block;
+    margin-top: 0;
+    margin-left: 10px;
 }
 
 .errorlist {
-    background: rgba(255, 0, 0, 0.3);
-    border: 3px dashed red;
-    border-right: none;
-    border-left: solid red;
-    padding: 0 1em 0.1em 2em;
-    margin: 0.3em 0 0.5em 0;
+    list-style: none;
+    background: rgba(220, 53, 69, 0.08);
+    border: none;
+    border-left: 3px solid #dc3545;
+    color: #a02834;
+    border-radius: 4px;
+    padding: 8px 14px;
+    margin: 4px 0 10px;
+    font-size: 0.9em;
 }
 .errornote {
-    border: 3px dashed #ffc000;
-    border-left: solid #ffc000;
-    padding: 0.7em 2em;
-    margin: 0 0 8px;
+    border: none;
+    border-left: 3px solid #e0a000;
+    background: rgba(224, 160, 0, 0.1);
+    border-radius: 4px;
+    padding: 10px 16px;
+    margin: 0 0 10px;
     font-size: 13px !important;
     font-weight: 400;
 }
 .required th::after {
-    content: "*";
-    color: red;
+    content: " *";
+    color: #c0392b;
+    font-weight: 700;
 }

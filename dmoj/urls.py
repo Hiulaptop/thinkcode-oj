@@ -24,7 +24,7 @@ from judge.views.select2 import AssigneeSelect2View, CommentSelect2View, Contest
     OrganizationUserSearchSelect2View, OrganizationUserSelect2View, ProblemSelect2View, \
     PublicProblemSelect2View, TagGroupSelect2View, TagSelect2View, TicketUserSelect2View, \
     UserSearchSelect2View, UserSelect2View
-from judge.views.widgets import martor_image_uploader
+from judge.views.widgets import martor_image_uploader, media_redirect
 from martor.views import markdown_search_user
 
 admin.autodiscover()
@@ -400,6 +400,13 @@ urlpatterns = [
             path('search-user', markdown_search_user, name='martor_search_user'),
         ])),
     ])),
+
+    path('martor/<str:name>', media_redirect, {'media_dir': settings.MARTOR_UPLOAD_MEDIA_DIR},
+         name='martor_media'),
+    path('pdf/<str:name>', media_redirect, {'media_dir': settings.PDF_STATEMENT_UPLOAD_MEDIA_DIR},
+         name='pdf_statement_media'),
+    path('static-upload/<str:name>', media_redirect, {'media_dir': settings.STATIC_UPLOAD_MEDIA_DIR},
+         name='static_upload_media'),
 
     path('feed/', include([
         path('problems/rss/', ProblemFeed(), name='problem_rss'),

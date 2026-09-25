@@ -1,0 +1,180 @@
+# ThinkCode OJ -- local docker-compose mirroring the production setup
+# (docker-compose.production.yml): same image, same 4 services
+# (site/bridged/celery/wsevent), same commands. It only replaces the parts
+# that assume a real deploy server:
+#   - `network_mode: host` -> bridge network (Docker Desktop on Windows/Mac
+#     doesn't support host networking); containers reach each other by
+#     service name instead of via 127.0.0.1 (see BRIDGED_DJANGO_CONNECT_HOST /
+#     WSEVENT_POST_HOST below and the matching support added in
+#     dmoj/local_settings.docker.py.example).
+#   - MariaDB/Redis native on the deploy host -> throwaway `db`/`redis`
+#     containers here, no persistence/backup guarantees.
+#   - `${IMAGE_TAG}` pulled from GHCR -> `build: .` (builds the Dockerfile
+#     locally).
+#   - Host bind-mounts (/var/www/thinkcodeoj/...) -> named volumes.
+#   - nginx (native on the deploy server, not part of this repo) -> the
+#     `nginx` service below using nginx/dev.conf, a from-scratch stand-in.
+#
+# Like production, source code is baked into the image, NOT bind-mounted --
+# editing templates/resources/etc requires a rebuild:
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# First run only (in another terminal once `db` is healthy):
+#   docker compose -f docker-compose.dev.yml exec site python3 manage.py migrate
+#   docker compose -f docker-compose.dev.yml exec site python3 manage.py createsuperuser
+#   docker compose -f docker-compose.dev.yml exec site python3 manage.py loaddata judge/fixtures/navbar.json judge/fixtures/language_small.json
+#
+# Site: http://localhost:8000/
+
+x-common: &common
+  build: .
+  restart: unless-stopped
+  environment: &common-env
+    DJANGO_SETTINGS_MODULE: dmoj.settings
+    DJANGO_SECRET_KEY: dev-insecure-secret-key-do-not-use-in-prod
+    DJANGO_DEBUG: "True"
+    ALLOWED_HOSTS: localhost,127.0.0.1
+    # Without this, Chrome/Firefox sending an Origin header on POST gets
+    # silently redirected back to the same page with no error shown --
+    # judge/views/widgets.py's csrf_failure() redirects instead of
+    # rendering a CSRF error page (deliberate, for Cloudflare DDoS
+    # protection in production) -- curl doesn't send Origin by default, so
+    # this was easy to miss testing with curl alone.
+    CSRF_TRUSTED_ORIGINS: http://localhost:8000,http://127.0.0.1:8000
+    DB_NAME: dmoj
+    DB_USER: root
+    DB_PASSWORD: root
+    DB_HOST: db
+    DB_PORT: "3306"
+    REDIS_URL: redis://redis:6379/0
+    CELERY_BROKER_URL: redis://redis:6379/0
+    CELERY_RESULT_BACKEND: redis://redis:6379/0
+    SITE_FULL_URL: http://localhost:8000
+    DMOJ_CANONICAL: localhost:8000
+    EMAIL_BACKEND: django.core.mail.backends.console.EmailBackend
+    # bridged binds 0.0.0.0 (container-local); site/celery dial back in via
+    # the "bridged" service name instead, since there's no shared host
+    # network namespace like production has (see the settings.py comment).
+    BRIDGED_JUDGE_HOST: "0.0.0.0"
+    BRIDGED_DJANGO_HOST: "0.0.0.0"
+    BRIDGED_DJANGO_CONNECT_HOST: bridged
+    WSEVENT_POST_HOST: wsevent
+    # judge/utils/problem_releases.py uploads problem test-data releases to
+    # Cloudflare R2 unconditionally after every Polygon import -- no local
+    # fallback exists, so point it at the throwaway `minio` service below
+    # (S3-compatible) instead of leaving it unset (which fails every import).
+    R2_ACCESS_KEY_ID: minioadmin
+    R2_SECRET_ACCESS_KEY: minioadmin
+    R2_ENDPOINT_URL: http://minio:9000
+    R2_PROBLEMS_BUCKET: thinkcode-problems
+  volumes: &common-volumes
+    - dev-media:/media
+    - dev-problems:/problems
+    - dev-log:/site/log
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_started
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: dmoj
+    volumes:
+      - dev-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+
+  minio:
+    # Docker Hub's minio/minio is no longer pullable (access denied, MinIO
+    # moved distribution to Quay.io) -- use quay.io directly.
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - dev-minio:/data
+
+  # One-shot: creates the bucket then exits. `mc alias set` is retried since
+  # `minio` takes a moment to start listening; no healthcheck on the minio
+  # image itself since it doesn't reliably ship curl/wget across versions.
+  minio-init:
+    image: quay.io/minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      sh -c "
+      until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 1; done &&
+      mc mb -p local/thinkcode-problems
+      "
+
+  site:
+    <<: *common
+    container_name: thinkcode-dev-site
+    # This list REPLACES (does not merge with) x-common's `volumes:` -- YAML
+    # anchors/merge keys don't deep-merge lists -- so repeat every mount from
+    # x-common here too, same caveat as docker-compose.production.yml.
+    volumes:
+      - dev-media:/media
+      - dev-problems:/problems
+      - dev-log:/site/log
+      - dev-static:/site/static
+    command: >
+      uwsgi
+      --module dmoj.wsgi:application
+      --http-socket 0.0.0.0:8000
+      --master
+      --workers 2
+      --harakiri 600
+      --need-app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-H", "Host: localhost", "http://127.0.0.1:8000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  bridged:
+    <<: *common
+    container_name: thinkcode-dev-bridged
+    command: python3 manage.py runbridged
+    stop_signal: SIGINT
+
+  celery:
+    <<: *common
+    container_name: thinkcode-dev-celery
+    command: celery -A dmoj_celery worker -l info --concurrency=2
+
+  wsevent:
+    <<: *common
+    container_name: thinkcode-dev-wsevent
+    command: node websocket/daemon.js
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - site
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+      - dev-static:/site/static:ro
+      - dev-media:/media:ro
+
+volumes:
+  dev-db-data:
+  dev-media:
+  dev-problems:
+  dev-log:
+  dev-static:
+  dev-minio:

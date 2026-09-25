@@ -6,7 +6,7 @@ from urllib.parse import urljoin
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
-from django.http import HttpRequest, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, \
+from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, \
     HttpResponseRedirect
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
@@ -97,6 +97,14 @@ def static_uploader(static_file):
     if not url_base.endswith('/'):
         url_base += '/'
     return urljoin(url_base, name)
+
+
+def media_redirect(request, media_dir, name):
+    # Uploaded links are stored as '/<prefix>/<name>'; resolve them against the
+    # configured storage (R2 or local) at request time so private/signed URLs stay fresh.
+    if os.path.basename(name) != name or name.startswith('.'):
+        raise Http404()
+    return HttpResponseRedirect(default_storage.url(os.path.join(media_dir, name)))
 
 
 def csrf_failure(request: HttpRequest, reason=''):
