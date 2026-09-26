@@ -99,6 +99,8 @@ nav {
             &.home-nav-element a {
                 padding: 0;
                 height: 44px;
+                display: inline-flex;
+                align-items: center;
 
                 &:hover {
                     border-bottom: none;
@@ -109,7 +111,7 @@ nav {
 
             .site-logo-img {
                 height: 32px;
-                width: auto;
+                width: 64px;
                 display: block;
             }
 
