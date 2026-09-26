@@ -585,10 +585,10 @@ class UserList(QueryStringSortMixin, InfinitePaginationMixin, DiggPaginatorMixin
     paginate_by = 100
     all_sorts = frozenset(('points', 'problem_count', 'rating', 'performance_points'))
     default_desc = all_sorts
-    default_sort = '-rating'
+    default_sort = '-performance_points'
 
     def get_queryset(self):
-        return (Profile.objects.filter(is_unlisted=False).order_by(self.order, 'id')
+        return (Profile.objects.filter(is_unlisted=False).order_by(self.order, '-problem_count', 'id')
                 .prefetch_related(Prefetch('user', queryset=User.objects.only('username', 'first_name')))
                 .prefetch_related(Prefetch('organizations',
                                   queryset=Organization.objects.filter(is_unlisted=False).only('name', 'id', 'slug')))
